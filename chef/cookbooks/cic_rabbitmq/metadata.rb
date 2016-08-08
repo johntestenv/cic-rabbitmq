@@ -1,0 +1,7 @@
+name 'cic_rabbitmq'
+maintainer 'The Authors'
+maintainer_email 'you@example.com'
+license 'all_rights'
+description 'Installs/Configures cic_rabbitmq'
+long_description 'Installs/Configures cic_rabbitmq'
+version '0.1.0'
