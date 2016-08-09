@@ -6,11 +6,11 @@ provisioner:
   name: chef_zero
 
 platforms:
-  - name: ubuntu-12.04
-  - name: centos-6.5
+  - name: centos-7.2
+  - name: ubuntu-14.04
 
 suites:
   - name: default
     run_list:
-      - recipe[cic_rabbitmq::default]
+      - recipe[cic_rabbitmq::packer]
     attributes:

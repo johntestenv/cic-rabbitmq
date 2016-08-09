@@ -2,20 +2,22 @@ provider "aws" {
   region = "${var.aws_region}"
 }
 
-module "acct" {
-  source = "github.com/reancloud/tfmod-aws-acct?ref=stable"
-  aws_region = "${var.aws_region}"
-  environment = "${var.environment}"
-  product_name = "${var.product_name}"
-  owner = "${var.owner}"
+resource "terraform_remote_state" "acct" {
+  backend = "s3"
+  config {
+    bucket = "${var.acct_remote_state_bucket}"
+    key = "${var.acct_remote_state_key}"
+    region = "${var.aws_region}"
+  }
 }
 
-module "network" {
-  source = "github.com/reancloud/tfmod-vpc?ref=phildev"
-  aws_region = "${var.aws_region}"
-  azs = "${var.azs}"
-  cloudwatch_iam = "${module.acct.flow_log}"
-  environment = "${var.environment}"
+resource "terraform_remote_state" "network" {
+  backend = "s3"
+  config {
+    bucket = "${var.network_remote_state_bucket}"
+    key = "${var.network_remote_state_key}"
+    region = "${var.aws_region}"
+  }
 }
 
 resource "aws_key_pair" "cic-rabbitmq" {
@@ -27,15 +29,15 @@ resource "aws_instance" "cic-rabbitmq" {
   ami = "${var.ami_id}"
   instance_type = "${var.instance_type}"
   key_name = "${aws_key_pair.cic-rabbitmq.key_name}"
-  vpc_security_group_ids = ["${aws_security_group.cic-rabbitmq-instance.id}","${module.network.baselinesg}"]
-  subnet_id = "${element(split(",", module.network.priv_subnets), 1)}"
+  vpc_security_group_ids = ["${aws_security_group.cic-rabbitmq-instance.id}","${terraform_remote_state.network.output.baselinesg}"]
+  subnet_id = "${element(split(",", terraform_remote_state.network.output.priv_subnets), 1)}"
   user_data = "${file("../../../data/templates/userdata.sh.tpl")}"
 }
 
 resource "aws_elb" "elb" {
   name = "cic-rabbitmq-elb"
-  subnets = ["${split(",", module.network.pub_subnets)}"]
-  security_groups = ["${aws_security_group.cic-rabbitmq-elb.id}","${module.network.baselinesg}"]
+  subnets = ["${split(",", terraform_remote_state.network.output.pub_subnets)}"]
+  security_groups = ["${aws_security_group.cic-rabbitmq-elb.id}","${terraform_remote_state.network.output.baselinesg}"]
   listener {
     instance_port = 80
     instance_protocol = "http"
@@ -56,7 +58,7 @@ resource "aws_elb" "elb" {
 resource "aws_security_group" "cic-rabbitmq-elb" {
   name = "cic-rabbitmq"
   description = "public cic-rabbitmq access for demo"
-  vpc_id = "${module.network.vpc_id}"
+  vpc_id = "${terraform_remote_state.network.output.vpc_id}"
 
   ingress {
     from_port = 80
@@ -75,12 +77,12 @@ resource "aws_security_group" "cic-rabbitmq-elb" {
 resource "aws_security_group" "cic-rabbitmq-instance" {
   name = "cic-rabbitmq"
   description = "public cic-rabbitmq access for demo"
-  vpc_id = "${module.network.vpc_id}"
+  vpc_id = "${terraform_remote_state.network.output.vpc_id}"
   ingress {
     from_port = 80
     to_port = 80
     protocol = "tcp"
-    security_groups = ["${aws_security_group.cic-rabbitmq-elb.id}","${module.network.baselinesg}"]
+    security_groups = ["${aws_security_group.cic-rabbitmq-elb.id}","${terraform_remote_state.network.output.baselinesg}"]
   }
   egress {
     from_port = 0
